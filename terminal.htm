@@ -1,0 +1,69 @@
+<html>
+<head>
+  <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+  <script src="http://yckart.github.io/jquery.base64.js/jquery.base64.js"></script>
+  <link rel="stylesheet" href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.11.2/themes/smoothness/jquery-ui.css" />
+  <script src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.11.2/jquery-ui.min.js"></script>
+  <script type="text/javascript" src="http://terminal.jcubic.pl/js/jquery.terminal-0.8.8.js"></script>
+  <link rel="stylesheet" href="http://terminal.jcubic.pl/css/jquery.terminal.css"></style>
+  <!-- <script type="text/javascript" src="https://github.com/brandonaaron/jquery-mousewheel"></script> -->
+</head>
+<body>
+  <div class="terminal">
+  </div>
+<script>
+jQuery(function($, undefined) {
+  var defaultPrompt = "xomni $ "
+  $('.terminal').terminal(
+  {
+    help: function() {
+      this.echo("Help content goes here.");
+    },
+    set: function (tenant, user, pass) {
+      tenantAddress = "http://"+ tenant + ".xomni.com/";
+        $.ajaxSetup({
+          headers: {
+            "Authorization": "Basic " + $.base64.encode(user + ":"+ pass) ,
+            "Accept": "application/vnd.xomni.api-v3_0, */*"
+          }
+        });
+
+      this.echo("Credentials set.");
+      this.set_prompt("xomni@" + tenant + "$ ")
+    },
+    exec: function(method, uri, body) {
+      var term = this;
+      $.ajax(tenantAddress + uri, {
+       type: method,
+       contentType: "application/json",
+       async:false,
+       success: function (result) {
+         term.echo(JSON.stringify(result, null, '\t'));
+       }
+      });
+    }
+  },
+  {
+    greetings: 'Welcome to XOMNI Dev Portal Terminal',
+    height: '100%',
+    width: '100%',
+    prompt: defaultPrompt,
+    keydown: function(e, term) {
+      if (e.keyCode == 9) //Tab
+      {
+        var existingCommand = term.get_command();
+        if (existingCommand == "set") {
+            term.set_command("set test.apistaging StagingApiPrivateTestUser StagingApiPrivateTestPass");
+        }
+        else if (existingCommand == "exec") {
+          term.set_command("exec get private/catalog/brands?skip=0&take=1000 empty");
+        }
+        // Tells the terminal to not handle the tab key
+        return false;
+      }
+    }
+  });
+});
+</script>
+</body>
+</html>
