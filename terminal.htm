@@ -13,35 +13,75 @@
   </div>
 <script>
 jQuery(function($, undefined) {
-  var defaultPrompt = "xomni $ "
+  var defaultPrompt = "xomni $ ";
+  var lastCommand;
+  var lastSearchResult;
+  var lastCompleteIndex = 0;
+  var lastSearchResultUrl;
+  
   $('.terminal').terminal(
   {
     help: function() {
       this.echo("Help content goes here.");
     },
-    set: function (tenant, user, pass) {
-      tenantAddress = "http://"+ tenant + ".xomni.com/";
-        $.ajaxSetup({
-          headers: {
-            "Authorization": "Basic " + $.base64.encode(user + ":"+ pass) ,
-            "Accept": "application/vnd.xomni.api-v3_0, */*"
-          }
-        });
-
-      this.echo("Credentials set.");
-      this.set_prompt("xomni@" + tenant + "$ ")
-    },
-    exec: function(method, uri, body) {
+    //set: function (tenant, user, pass) {
+    //  tenantAddress = "http://"+ tenant + ".xomni.com/";
+    //    $.ajaxSetup({
+    //      headers: {
+    //        "Authorization": "Basic " + $.base64.encode(user + ":"+ pass) ,
+    //        "Accept": "application/vnd.xomni.api-v3_0, */*"
+    //      }
+    //    });
+    //
+    //  this.echo("Credentials set.");
+    //  this.set_prompt("xomni@" + tenant + "$ ")
+    //},
+    exec: function(method, uri, body, resp) {
       var term = this;
-      $.ajax(tenantAddress + uri, {
-       type: method,
-       contentType: "application/json",
-       async:false,
-       success: function (result) {
-         term.echo(JSON.stringify(result, null, '\t'));
-       }
-      });
-    }
+	  
+	  if (!resp) {
+		  $.ajax(tenantAddress + uri, {
+		   type: method,
+		   contentType: "application/json",
+		   async:false,
+		   success: function (result) {
+			 term.echo(JSON.stringify(result, null, '\t'));
+		   }
+		  });
+	  }
+	  else
+	  {
+		term.echo(resp);
+	  }
+	  
+    },
+	how: function(a,b,c,d) {
+		var term = this;
+		$.ajax(lastSearchResultUrl , {
+				type: "GET",
+				contentType: "application/json",
+				async:false,
+				success: function (result) {
+					var parsedHtml = $(result);
+					var sampleRequestBodies = parsedHtml.find(".payload-sample.request-payload > pre");
+					var sampleRequestBody = "";
+					var sampleResponseBody = "" ;
+					
+					if(sampleRequestBodies.length) {
+						sampleRequestBody = sampleRequestBodies[0].innerText;
+					}
+					var sampleRequestMethod = parsedHtml.find("#request-description-table > tbody > tr > td")[0].innerText.trim();
+					var sampleRequestUri = parsedHtml.find("#request-description-table > tbody > tr > td")[1].innerText.trim();
+					var sampleResponseBodies = parsedHtml.find(".payload-sample.response-payload > pre")[0];	
+					
+					if(sampleResponseBodies.length) {
+						sampleResponseBody = sampleResponseBodies[0].innerText;
+					}
+					
+					term.set_command("exec " + sampleRequestMethod + " " + sampleRequestUri + " " + sampleRequestBody + " " + sampleResponseBody);
+				}
+			  });
+	}
   },
   {
     greetings: 'Welcome to XOMNI Dev Portal Terminal',
@@ -51,13 +91,29 @@ jQuery(function($, undefined) {
     keydown: function(e, term) {
       if (e.keyCode == 9) //Tab
       {
-        var existingCommand = term.get_command();
-        if (existingCommand == "set") {
-            term.set_command("set test.apistaging StagingApiPrivateTestUser StagingApiPrivateTestPass");
-        }
-        else if (existingCommand == "exec") {
-          term.set_command("exec get private/catalog/brands?skip=0&take=1000 empty");
-        }
+        var command = term.get_command();
+		
+		if (command != lastCommand) {
+			$.ajax("http://dev.xomni.com/v3-1/suggestion?term=" + command + "&type=All&top=10" , {
+				type: "GET",
+				contentType: "application/json",
+				async:false,
+				success: function (result) {
+					lastCommand = "how " + result[0].Title;
+					lastSearchResult = result;
+					lastCompleteIndex = 0;
+					term.set_command(lastCommand);
+					lastSearchResultUrl = lastSearchResult[lastCompleteIndex].Url;
+				}
+			  });
+		}
+		else {
+			lastCompleteIndex = lastCompleteIndex + 1;
+			lastCommand = "how " + lastSearchResult[lastCompleteIndex].Title;
+			term.set_command(lastCommand);
+			lastSearchResultUrl = lastSearchResult[lastCompleteIndex].Url;
+		}
+		
         // Tells the terminal to not handle the tab key
         return false;
       }
